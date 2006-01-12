@@ -55,6 +55,8 @@ SEE ALSO
 
     LWP::UserAgent.
 
+    LWPx::ParanoidAgent.
+
 AUTHOR
     Christian Hansen "ch@ngmedia.com"
 

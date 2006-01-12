@@ -7,7 +7,7 @@ use base 'Authen::Simple::Adapter';
 use LWP::UserAgent;
 use Params::Validate qw[];
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 __PACKAGE__->options({
     url => {
@@ -29,18 +29,25 @@ __PACKAGE__->options({
 sub check {
     my ( $self, $username, $password ) = @_;
 
-    my ( $url, $response ) = ( $self->url, undef );
+    # This implementation is very hackish, however I could not find a cleaner
+    # way to implement this without forking a lot of code from LWP::UserAgent.
+    # Please let me know if you have any ideas of improvements.
+
+    my $override = sprintf '%s::get_basic_credentials', ref $self->agent;
+    my $response = undef;
+    my $url      = $self->url;
 
     # First make sure we receive a challenge
 
     {
+        no strict   'refs';
         no warnings 'redefine';
 
-        local *LWP::UserAgent::get_basic_credentials = sub {
+        local *$override = sub {
             return ( undef, undef );
         };
 
-        $response = $self->agent->get($url);
+        $response = $self->agent->head($url);
     }
 
     if ( my $warning = $response->header('Client-Warning') ) {
@@ -59,14 +66,17 @@ sub check {
         return 0;
     }
 
+    # We have a challenge, issue a new request with credentials.
+
     {
+        no strict   'refs';
         no warnings 'redefine';
 
-        local *LWP::UserAgent::get_basic_credentials = sub {
+        local *$override = sub {
             return ( $username, $password );
         };
 
-        $response = $self->agent->get($url);
+        $response = $self->agent->head($url);
     }
 
     if ( $response->code == 401 ) {
@@ -174,6 +184,8 @@ Returns true on success and false on failure.
 L<Authen::Simple>.
 
 L<LWP::UserAgent>.
+
+L<LWPx::ParanoidAgent>.
 
 =head1 AUTHOR
 
